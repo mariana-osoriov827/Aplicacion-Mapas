@@ -3,6 +3,7 @@ package com.example.taller2.ui.components
 import android.net.Uri
 import android.widget.Toast
 import androidx.camera.compose.CameraXViewfinder
+import androidx.camera.viewfinder.core.ImplementationMode
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -21,6 +22,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -45,11 +48,16 @@ fun CameraPreviewContent(
         viewModel.bindToCamera(context.applicationContext, lifecycleOwner)
     }
 
-    Box(modifier = modifier) {
+    // clipToBounds: la vista previa no se sale del recuadro de la cámara
+    Box(modifier = modifier.clipToBounds()) {
         uiState.surfaceRequest?.let { request ->
+            // EMBEDDED (TextureView) respeta el recorte y las esquinas redondeadas de la tarjeta;
+            // el modo por defecto (SurfaceView) se dibuja por encima y se pasa al lado del mapa
             CameraXViewfinder(
                 surfaceRequest = request,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize(),
+                implementationMode = ImplementationMode.EMBEDDED,
+                contentScale = ContentScale.Crop
             )
         }
 

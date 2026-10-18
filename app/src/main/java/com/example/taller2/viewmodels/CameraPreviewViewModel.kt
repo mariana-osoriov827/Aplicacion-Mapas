@@ -61,8 +61,7 @@ class CameraPreviewViewModel : ViewModel() {
 
     fun toggleCameraLens() {
         val nextUseBackLens = !_uiState.value.useBackLens
-        _uiState.update { it.copy(useBackLens = nextUseBackLens) }
-        selector = if (nextUseBackLens) {
+        val nextSelector = if (nextUseBackLens) {
             CameraSelector.DEFAULT_BACK_CAMERA
         } else {
             CameraSelector.DEFAULT_FRONT_CAMERA
@@ -70,6 +69,11 @@ class CameraPreviewViewModel : ViewModel() {
 
         val owner = lifecycleOwner
         val provider = processCameraProvider
+        // Si el dispositivo no tiene esa cámara (p. ej. tablet sin cámara trasera) no se cambia
+        if (provider != null && !provider.hasCamera(nextSelector)) return
+
+        _uiState.update { it.copy(useBackLens = nextUseBackLens) }
+        selector = nextSelector
         if (owner != null && provider != null) {
             provider.unbindAll()
             provider.bindToLifecycle(owner, selector, cameraPreviewUseCase, imageCapture)
