@@ -10,11 +10,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.DeleteSweep
+import androidx.compose.material.icons.rounded.MyLocation
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
@@ -52,18 +54,30 @@ fun MapComponent(
     defaultZoom: Double = 16.0,
     defaultLineColor: Color = MaterialTheme.colorScheme.primary,
     route: List<Location> = emptyList(),
+    currentLocation: Location? = null,
     photos: List<RoutePhoto> = emptyList(),
     isRecording: Boolean = false,
     onToggleRecording: () -> Unit = {},
     onClearRoute: () -> Unit = {},
 ) {
-    val mapViewportState = rememberMapViewportState()
+    // Arranca en Bogotá (no en el mundo entero) mientras llega la ubicación del usuario
+    val mapViewportState = rememberMapViewportState {
+        setCameraOptions {
+            zoom(defaultZoom)
+            center(Point.fromLngLat(-74.0641630119028, 4.627389316647156))
+            pitch(0.0)
+        }
+    }
+
+    val hasLocation = currentLocation != null
 
     Box(modifier = modifier) {
         MapboxMap(
             Modifier.fillMaxSize(),
             mapViewportState = mapViewportState,
             scaleBar = { }, // Disables/hides the scale bar ornament
+            // Brújula arriba a la izquierda para que no quede debajo de los botones del recorrido
+            compass = { Compass(alignment = Alignment.TopStart) },
         ) {
             // Muestra la ubicación actual del usuario y la cámara del mapa la sigue
             MapEffect(Unit) { mapView ->
@@ -77,6 +91,18 @@ fun MapComponent(
                 mapViewportState.transitionToFollowPuckState(
                     FollowPuckViewportStateOptions.Builder().zoom(defaultZoom).pitch(0.0).build()
                 )
+            }
+            // Cuando llega la primera ubicación (el mapa ya está listo): vuela hasta ella y sigue al usuario
+            MapEffect(hasLocation) {
+                if (currentLocation != null) {
+                    mapViewportState.setCameraOptions {
+                        center(Point.fromLngLat(currentLocation.longitude, currentLocation.latitude))
+                        zoom(defaultZoom)
+                    }
+                    mapViewportState.transitionToFollowPuckState(
+                        FollowPuckViewportStateOptions.Builder().zoom(defaultZoom).pitch(0.0).build()
+                    )
+                }
             }
             //Polyline del recorrido
             if (route.size > 1) {
@@ -116,6 +142,25 @@ fun MapComponent(
                     }
                 }
             }
+        }
+
+        // Vuelve a centrar el mapa en la ubicación del usuario y lo sigue de nuevo
+        FloatingActionButton(
+            onClick = {
+                mapViewportState.transitionToFollowPuckState(
+                    FollowPuckViewportStateOptions.Builder().zoom(defaultZoom).pitch(0.0).build()
+                )
+            },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(16.dp),
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.MyLocation,
+                contentDescription = stringResource(R.string.center_location)
+            )
         }
 
         // Botones del recorrido: borrar e iniciar / detener

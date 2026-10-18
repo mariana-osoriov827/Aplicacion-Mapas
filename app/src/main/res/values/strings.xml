@@ -20,4 +20,5 @@
     <string name="start_route">Iniciar recorrido</string>
     <string name="stop_route">Detener recorrido</string>
     <string name="clear_route">Borrar recorrido</string>
+    <string name="center_location">Centrar en mi ubicación</string>
 </resources>
