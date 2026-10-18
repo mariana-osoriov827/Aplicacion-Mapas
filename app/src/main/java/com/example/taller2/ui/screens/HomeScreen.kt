@@ -171,6 +171,7 @@ private fun MapRegion(
             MapComponent(
                 modifier = Modifier.fillMaxSize(),
                 route = uiState.route,
+                currentLocation = uiState.currentLocation,
                 photos = uiState.photos,
                 isRecording = uiState.isRecording,
                 onToggleRecording = {

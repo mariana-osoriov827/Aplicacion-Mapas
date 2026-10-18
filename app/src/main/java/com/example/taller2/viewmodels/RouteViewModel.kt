@@ -21,12 +21,13 @@ import kotlinx.coroutines.flow.update
 data class RouteState(
     val isRecording: Boolean = false,
     val route: List<Location> = emptyList(),
+    val currentLocation: Location? = null,
     val photos: List<RoutePhoto> = emptyList()
 )
 
 class RouteViewModel : ViewModel() {
-    private val interval = 5000L // 5 seconds
-    private val minDistance = 5F // 5 meters
+    private val interval = 2000L // 2 seconds
+    private val minDistance = 2F // 2 meters
     private val fastestInterval = 1000L // 1 second
 
     private val _uiState = MutableStateFlow(RouteState())
@@ -38,48 +39,77 @@ class RouteViewModel : ViewModel() {
 
     override fun onCleared() {
         super.onCleared()
-        stopLocationUpdates()
+        if (::fusedLocationClient.isInitialized)
+            fusedLocationClient.removeLocationUpdates(locationCallback)
     }
 
     fun setup(context: Context) {
         // Al abrir/cerrar el plegable la pantalla se recompone: no se vuelve a configurar
         if (::fusedLocationClient.isInitialized) return
 
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(context.applicationContext)
         locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, interval).apply {
             setMinUpdateDistanceMeters(minDistance)
             setMinUpdateIntervalMillis(fastestInterval)
             setGranularity(Granularity.GRANULARITY_PERMISSION_LEVEL)
-            setWaitForAccurateLocation(true)
+            setWaitForAccurateLocation(false)
         }.build()
         locationCallback = object : LocationCallback() {
             override fun onLocationResult(locationResult: LocationResult) {
+                // La ubicación actual siempre se actualiza; la ruta solo mientras se graba
                 _uiState.update { currentState ->
-                    currentState.copy(route = currentState.route.plus(locationResult.locations))
+                    currentState.copy(
+                        route = if (currentState.isRecording)
+                            currentState.route.plus(locationResult.locations)
+                        else currentState.route,
+                        currentLocation = locationResult.lastLocation ?: currentState.currentLocation
+                    )
                 }
             }
         }
+        fetchCurrentLocation()
+        requestLocationUpdates()
     }
 
+    // Escucha el GPS desde que se dan los permisos, para mostrar la ubicación actual en el mapa
     @SuppressLint("MissingPermission")
+    private fun requestLocationUpdates() {
+        fusedLocationClient.requestLocationUpdates(
+            locationRequest,
+            locationCallback,
+            Looper.getMainLooper()
+        )
+    }
+
+    // Ubicación actual al abrir la app, para centrar el mapa aunque no se haya iniciado el recorrido
+    @SuppressLint("MissingPermission")
+    fun fetchCurrentLocation() {
+        if (!::fusedLocationClient.isInitialized) return
+        fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
+            .addOnSuccessListener { location ->
+                if (location != null) {
+                    _uiState.update { it.copy(currentLocation = location) }
+                } else {
+                    fusedLocationClient.lastLocation.addOnSuccessListener { last ->
+                        if (last != null) _uiState.update { it.copy(currentLocation = last) }
+                    }
+                }
+            }
+    }
+
+    // Inicia el recorrido: el primer punto es la ubicación actual
     fun startLocationUpdates() {
         if (!::fusedLocationClient.isInitialized) return
         _uiState.update {
-            fusedLocationClient.requestLocationUpdates(
-                locationRequest,
-                locationCallback,
-                Looper.getMainLooper()
+            it.copy(
+                isRecording = true,
+                route = it.route.plus(listOfNotNull(it.currentLocation))
             )
-            it.copy(isRecording = true)
         }
     }
 
     fun stopLocationUpdates() {
-        if (!::fusedLocationClient.isInitialized) return
-        _uiState.update {
-            fusedLocationClient.removeLocationUpdates(locationCallback)
-            it.copy(isRecording = false)
-        }
+        _uiState.update { it.copy(isRecording = false) }
     }
 
     // Agrega la foto con la ubicación actual del dispositivo (donde fue tomada)
@@ -92,7 +122,7 @@ class RouteViewModel : ViewModel() {
         fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
             .addOnCompleteListener { task ->
                 val current = if (task.isSuccessful) task.result else null
-                val location = current ?: _uiState.value.route.lastOrNull()
+                val location = current ?: _uiState.value.currentLocation
                 _uiState.update { it.copy(photos = it.photos.plus(RoutePhoto(uri, name, location))) }
             }
     }
