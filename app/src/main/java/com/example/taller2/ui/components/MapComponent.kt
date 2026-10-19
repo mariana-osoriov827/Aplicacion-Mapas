@@ -26,12 +26,14 @@ import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.example.taller2.R
 import com.example.taller2.data.RoutePhoto
 import com.mapbox.geojson.Point
 import com.mapbox.maps.ViewAnnotationAnchor
+import com.mapbox.maps.extension.compose.ComposeMapInitOptions
 import com.mapbox.maps.extension.compose.MapEffect
 import com.mapbox.maps.extension.compose.MapboxMap
 import com.mapbox.maps.extension.compose.animation.viewport.rememberMapViewportState
@@ -75,6 +77,11 @@ fun MapComponent(
         MapboxMap(
             Modifier.fillMaxSize(),
             mapViewportState = mapViewportState,
+            // TextureView en vez de SurfaceView: dentro de la tarjeta con bordes redondeados
+            // algunos celulares dibujan el SurfaceView en negro
+            composeMapInitOptions = with(LocalDensity.current) {
+                ComposeMapInitOptions(pixelRatio = density, textureView = true)
+            },
             scaleBar = { }, // Disables/hides the scale bar ornament
             // Brújula arriba a la izquierda para que no quede debajo de los botones del recorrido
             compass = { Compass(alignment = Alignment.TopStart) },
@@ -135,6 +142,9 @@ fun MapComponent(
                                     anchor(ViewAnnotationAnchor.BOTTOM)
                                 }
                                 allowOverlap(true)
+                                // La foto se toma donde está el usuario: sin esto Mapbox oculta el marcador
+                                // porque queda encima del punto de la ubicación actual
+                                allowOverlapWithPuck(true)
                             }
                         ) {
                             PhotoMarker(name = photo.name, uri = photo.uri)

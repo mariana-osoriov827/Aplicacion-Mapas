@@ -29,6 +29,7 @@ class RouteViewModel : ViewModel() {
     private val interval = 2000L // 2 seconds
     private val minDistance = 2F // 2 meters
     private val fastestInterval = 1000L // 1 second
+    private val maxAccuracy = 20F // 20 meters: puntos con más error que esto se ignoran en la ruta
 
     private val _uiState = MutableStateFlow(RouteState())
     val state = _uiState.asStateFlow()
@@ -60,7 +61,7 @@ class RouteViewModel : ViewModel() {
                 _uiState.update { currentState ->
                     currentState.copy(
                         route = if (currentState.isRecording)
-                            currentState.route.plus(locationResult.locations)
+                            currentState.route.plus(locationResult.locations.filter(::isAccurate))
                         else currentState.route,
                         currentLocation = locationResult.lastLocation ?: currentState.currentLocation
                     )
@@ -103,10 +104,14 @@ class RouteViewModel : ViewModel() {
         _uiState.update {
             it.copy(
                 isRecording = true,
-                route = it.route.plus(listOfNotNull(it.currentLocation))
+                route = it.route.plus(listOfNotNull(it.currentLocation?.takeIf(::isAccurate)))
             )
         }
     }
+
+    // El GPS a veces da puntos con mucho error (bajo techo, al arrancar): esos hacen que la ruta salte
+    private fun isAccurate(location: Location) =
+        location.hasAccuracy() && location.accuracy <= maxAccuracy
 
     fun stopLocationUpdates() {
         _uiState.update { it.copy(isRecording = false) }
